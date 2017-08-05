@@ -107,7 +107,7 @@ class dataGenerator(object):
             df[feature] = MVNormQntlDF.loc[:,feature]
         return df, Z
             
-    def genSigmoidTransform(self, df_imvn, **kwargs):
+    def genSigmoidTransform(self, df_imvn, vars_to_use = 'ALL', **kwargs):
         '''
         Construct and return a function that applies the following mapping to
         df_imvn:
@@ -129,14 +129,18 @@ class dataGenerator(object):
         --------------
         function applying the constructed sigmoid transform
         '''
-        n_inter = max(int(df_imvn.shape[1]/2),1)
-        inter_vars = [np.random.choice(df_imvn.columns,2).tolist() 
+        if vars_to_use == 'ALL':
+            v = df_imvn.columns.tolist()
+        else:
+            v = vars_to_use
+        n_inter = max(int(df_imvn[v].shape[1]/2),1)
+        inter_vars = [np.random.choice(df_imvn[v].columns,2).tolist() 
                         for i in np.arange(n_inter)]     
-        params = np.random.uniform(-1,1,size = df_imvn.shape[1]+n_inter+1)
-        lin_pred = self.apply_transform(df_imvn,
+        params = np.random.uniform(-1,1,size = df_imvn[v].shape[1]+n_inter+1)
+        lin_pred = self.apply_transform(df_imvn[v],
                     lambda x: x,inter_vars,params)
         f = self._sigmoid_scaler_(lin_pred, **kwargs)
-        return lambda x: self.apply_transform(x,f,inter_vars,params)
+        return lambda x: self.apply_transform(x[v],f,inter_vars,params)
     
     def _genSparseCovMatrix_(self,n):
         A = np.random.uniform(-1,1,n**2) * \
@@ -321,7 +325,13 @@ def plotData(df,response = None, n_cols = None):
     ncuts = 10
     var_cols = df.columns.tolist()
     if response is not None:
-        var_cols.remove(response)
+        if type(response) == str:
+            response = [response]
+        for r in response:
+            var_cols.remove(r)
+        colors = ['orange','b','y','g','c','m']
+        colors = (colors * np.ceil(len(response)/len(colors)).
+                  astype(int))[0:len(response)]
     n_vars = len(var_cols)
     if n_cols is None:
         n_cols = int(np.sqrt(n_vars))
@@ -335,17 +345,21 @@ def plotData(df,response = None, n_cols = None):
             df[v].value_counts().sort_index().\
               plot(kind = 'bar',ax=ax, color = 'xkcd:light grey')
             if response is not None:
-                df[response].groupby(df[v]).mean().sort_index().\
-                  plot(ax = ax.twinx(), color = 'orange')
+                axt = ax.twinx()
+                for r,c in zip(response,colors):
+                    df[r].groupby(df[v]).mean().sort_index().\
+                      plot(ax = axt, color = c)
             plt.xlim([-1,len(df[v].cat.categories)])
         elif v in float_vars:
             cuts, bins = pd.cut(df[v],ncuts,retbins = True)
             cuts.value_counts().sort_index().plot(kind = 'bar',
                   ax=ax, color = 'xkcd:light grey')
             if response is not None:
-                df[response].groupby(cuts).mean().\
-                  sort_index().plot(ax = ax.twinx(),
-                          color = 'orange')
+                axt = ax.twinx()
+                for r,c in zip(response,colors):
+                    df[r].groupby(cuts).mean().\
+                      sort_index().plot(ax = axt,
+                          color = c)
             plt.xlim([-1,10])
             ticklabels = [round((bins[j+1]+bins[j])/2,2) \
                                  for j in range(len(bins)-1)]
@@ -358,12 +372,17 @@ def plotData(df,response = None, n_cols = None):
         else:
             for tk in ax.get_xticklabels():
                 tk.set_visible(True); tk.set_rotation(45)
-    plt.tight_layout()
-    plt.show()
+    if response is not None:
+        mlpFig.legend(plt.gca().lines,response,'lower center',
+                      ncol = n_cols, fontsize = 'large'#,
+                      #bbox_to_anchor = (0.5,0.95)
+                      )
+    plt.tight_layout(rect = [0,0.1,1,1])
+    mlpFig.show()
     
 if __name__ == '__main__':
     x = dataGenerator()
     df1, df2 = x.generate(1000)
     f = x.genSigmoidTransform(df2)
     df = pd.concat([df1,pd.DataFrame(f(df2),columns=['Response'])],axis=1)
-    plotData(df, response = 'Response')
+    plotData(df, response = 'Response').show()
