@@ -23,10 +23,9 @@ class dataGenerator(object):
     n_uniform : number of uniform variables
     '''
     
-    def __init__(self,catg_lvls = [5,3,4], n_beta = 3, n_uniform = 1):
+    def __init__(self,catg_lvls = [5,3,4], n_beta = 3, n_uniform = 1, signal_strength = 1.0):
+        self.__dict__.update(locals())
         self.n_catg = len(catg_lvls)
-        self.n_beta = n_beta
-        self.n_uniform = n_uniform
         self.n_cont = n_beta + n_uniform
         self.n = self.n_catg + self.n_cont
         self.MVNCoefs, self.A = self._genCopulaParams_(self.n)
@@ -182,7 +181,7 @@ class dataGenerator(object):
         z = z/np.linalg.norm(z,axis=1).reshape(n,1)
         return z, np.dot(z,z.T)
         
-    def _genMVNormQntlDF_(self, n, N):
+    def _genMVNormQntlDF_(self, N = 1, Z1 = None):
         '''
         Construct and return two pandas DataFrames.
         
@@ -195,11 +194,17 @@ class dataGenerator(object):
         -------------
         df : N-by-n pandas DataFrame of Gaussian copula observations
         Z : N-by-n pandas DataFrame of underlying independent multivariate
-            Normal R.V.s
+            standard Normal R.V.s
         '''
-        Z = np.random.multivariate_normal([0]*n,np.eye(n),size=N)
-        df = pd.DataFrame(stats.norm.cdf(np.dot(Z,self.MVNCoefs.T)))
-        return df, pd.DataFrame(Z)
+        if Z1 is None:
+            n = self.n
+            Z1 = np.random.multivariate_normal([0]*n,np.eye(n),size=N)
+        else:
+            N, n = Z1.shape
+        Z2 = np.random.multivariate_normal([0]*n,np.eye(n),size=N)
+        Z3 = np.sqrt(self.signal_strength)*Z1 + np.sqrt(1-self.signal_strength)*Z2
+        df = pd.DataFrame(stats.norm.cdf(np.dot(Z3,self.MVNCoefs.T)))
+        return df, pd.DataFrame(Z1)
         
     def _genBetaVar_(self,X):
         '''
