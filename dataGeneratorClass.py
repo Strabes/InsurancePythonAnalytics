@@ -55,7 +55,8 @@ class dataGenerator(object):
         Z : pandas DataFrame with independent standard Normal
             random variables used to generate df
         '''
-        MVNormQntlDF, Z = self._genMVNormQntlDF_(self.n,N)
+        #MVNormQntlDF, Z = self._genMVNormQntlDF_(self.n,N)
+        MVNormQntlDF, Z = self._genMVNormQntlDF_(N=N)
         MVNormQntlDF.columns = self.featureNames
         Z.columns = self.featureNames
         #MVNormDF = np.dot(Z,self.MVNCoefs.T)
@@ -87,7 +88,8 @@ class dataGenerator(object):
         Z : pandas DataFrame with independent standard Normal
             random variables used to generate df
         '''
-        MVNormQntlDF, Z = self._genMVNormQntlDF_(self.n,N) 
+        #MVNormQntlDF, Z = self._genMVNormQntlDF_(self.n,N)
+        MVNormQntlDF, Z = self._genMVNormQntlDF_(N=N) 
         MVNormQntlDF.columns = self.featureNames
         Z.columns = self.featureNames
         df = pd.DataFrame(columns = self.featureNames)
@@ -350,49 +352,65 @@ def plotData(df,response = None, n_cols = None):
     if n_cols is None:
         n_cols = int(np.sqrt(n_vars))
     n_rows = int(np.ceil(n_vars / n_cols))
-    mlpFig, axes = plt.subplots(n_rows,n_cols,figsize = (13,8))
+    mlpFig, axes = plt.subplots(n_rows,n_cols,figsize = (13,8),sharex = False)
     catg_vars = df.columns[df.dtypes == 'category'].tolist()
     float_vars = df.columns[df.dtypes == 'float'].tolist()
     for i,v in enumerate(var_cols):
         ax = axes.ravel()[i]
         if v in catg_vars:
-            df[v].value_counts().sort_index().\
-              plot(kind = 'bar',ax=ax, color = 'xkcd:light grey')
+            bars = df[v].value_counts().sort_index()
+            ax.bar(np.array(bars.index.values),bars.values, color = 'xkcd:light grey')
             if response is not None:
                 axt = ax.twinx()
                 for r,c in zip(response,colors):
-                    df[r].groupby(df[v]).mean().sort_index().\
-                      plot(ax = axt, color = c)
+                    z = df[r].groupby(df[v]).mean().sort_index()
+                    axt.plot(np.array(z.index.values), z.values, color = c)
+
             plt.xlim([-1,len(df[v].cat.categories)])
+            #print(lbls)
+            ax.set_xticks(range(len(bars.index.values.to_list())))
+            ax.set_xticklabels(bars.index.values.to_list())
         elif v in float_vars:
             cuts, bins = pd.cut(df[v],ncuts,retbins = True)
-            cuts.value_counts().sort_index().plot(kind = 'bar',
-                  ax=ax, color = 'xkcd:light grey')
+            bars = cuts.value_counts().sort_index()
+            ax.bar(range(len(bars)),bars.values,color = 'xkcd:light grey')
             if response is not None:
                 axt = ax.twinx()
                 for r,c in zip(response,colors):
-                    df[r].groupby(cuts).mean().\
-                      sort_index().plot(ax = axt,
-                          color = c)
+                    z = df[r].groupby(cuts).mean().sort_index()
+                    axt.plot(range(len(z)), z.values, color = c)
             plt.xlim([-1,10])
             ticklabels = [round((bins[j+1]+bins[j])/2,2) \
                                  for j in range(len(bins)-1)]
+            ax.set_xticks(range(len(ticklabels)))
             ax.set_xticklabels(ticklabels)
         ax.set_title(v)
-            #axes.ravel()[i].scatter(df[v],df[response])
     for i,ax in enumerate(axes.flatten()):
+    #         for tk in ax.get_xticklabels():
+    #             tk.set_visible(True); tk.set_rotation(45)
         if i >= len(var_cols):
             ax.axis('off')
         else:
             for tk in ax.get_xticklabels():
                 tk.set_visible(True); tk.set_rotation(45)
+    mlpFig.text(-0.025, 0.55, 'Count of Records', ha='center', va='center', rotation='vertical')
     if response is not None:
-        mlpFig.legend(plt.gca().lines,response,'lower center',
-                      ncol = n_cols, fontsize = 'large'#,
-                      #bbox_to_anchor = (0.5,0.95)
-                      )
+        mlpFig.legend(
+            plt.gca().lines,
+            response,
+            'lower center',
+            ncol = n_cols,
+            fontsize = 'large'
+            )
+        mlpFig.text(
+            1.025,
+            0.55,
+            'Mean Response',
+            ha='center',
+            va='center',
+            rotation='vertical')
     plt.tight_layout(rect = [0,0.1,1,1])
-    mlpFig.show()
+    return(mlpFig)
     
 if __name__ == '__main__':
     x = dataGenerator()
